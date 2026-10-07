@@ -56,6 +56,7 @@ def vs_longform(args, **kwargs):
         base_url = client.normalize_base_url(_cfg("base_url", args, kwargs, client.DEFAULT_BASE_URL))
         timeout = float(_cfg("timeout_s", args, kwargs, client.DEFAULT_READ_TIMEOUT_S)
                         or client.DEFAULT_READ_TIMEOUT_S)
+        out_dir = _cfg("out_dir", args, kwargs, ".")
         default_voice = str(_cfg("default_voice", args, kwargs, "")
                             or args.get("voice") or "").strip()
         voice = str(args.get("voice") or default_voice).strip()
@@ -154,6 +155,31 @@ def vs_longform(args, **kwargs):
             return client.err_envelope(
                 "VoiceStudio returned an error (HTTP %s). Try again, or run /vs-status."
                 % r.get("status"), code="E_server_error")
+        if client.is_sse_response(r):
+            # POST /audiobook streams text/event-stream: the POST itself
+            # IS the render (started -> chapters -> assembling ->
+            # mastering -> done). Consume the terminal done event, fetch
+            # the artifact bytes at /audio/<output>, save locally.
+            frames = client.parse_sse_frames(r.get("body") or b"")
+            done = client.extract_audiobook_done(frames)
+            if done and done.get("output"):
+                return _finish_sse_audiobook(
+                    base_url, done, timeout, out_dir,
+                    n_chapters=n_chapters, fmt=fmt, chapters=chapters)
+            sse_job = None
+            for f in frames:
+                if isinstance(f, dict) and f.get("job_id"):
+                    sse_job = f.get("job_id")
+                    break
+            if sse_job:
+                started_msg = ("Plan ready: %d chapters. I will report progress as it renders."
+                               % n_chapters)
+                return _poll_audiobook_job(
+                    base_url, sse_job, timeout, started_msg=started_msg,
+                    n_chapters=n_chapters, fmt=fmt, chapters=chapters)
+            return client.err_envelope(
+                "VoiceStudio accepted the script but gave no job to track. "
+                "Run /vs-status, then try again.", code="E_no_job")
         payload = client.parse_json_body(r) or {}
         job_id = payload.get("job_id") or payload.get("id")
         artifact = (payload.get("destination_path") or payload.get("audio_path")
@@ -176,6 +202,48 @@ def vs_longform(args, **kwargs):
         return final
     except Exception as e:  # never raise to the loop
         return client.err_envelope("Could not render that audiobook: %s" % e, code="E_exception")
+
+
+def _finish_sse_audiobook(base_url, done, timeout, out_dir,
+                          n_chapters=None, fmt="m4b", chapters=None):
+    """Fetch the SSE terminal artifact at /audio/<output>; save; envelope."""
+    job_id = done.get("job_id")
+    output = str(done.get("output") or "").strip().lstrip("/")
+    if job_id:
+        # Best-effort cross-check against the listed job endpoint; the SSE
+        # done event itself stays authoritative (never fail on unknown).
+        state = _fetch_job_state(base_url, job_id)
+        status = str((state or {}).get("status") or "").lower()
+        if status in ("failed", "error", "cancelled"):
+            return client.err_envelope(
+                "Rendering stopped. Nothing is lost. Rerun with --resume %s to continue."
+                % job_id,
+                code="E9_interrupted", hint="Rerun with resume=%s" % job_id)
+    dl = client.api_get(base_url, "/audio/%s" % output, timeout=timeout)
+    if client.is_connection_failure(dl):
+        return client.err_envelope(client.server_down_error(base_url), code="E1_server_down")
+    if dl.get("status") != 200 or not dl.get("body"):
+        if job_id:
+            return _poll_audiobook_job(
+                base_url, job_id, timeout, n_chapters=n_chapters,
+                fmt=fmt, chapters=chapters)
+        return client.err_envelope(
+            "VoiceStudio finished rendering but I could not fetch the audio file. "
+            "Run /vs-status, then try again.", code="E_server_error")
+    stem, dot, out_ext = output.rpartition(".")
+    stem = stem or output
+    ext = (out_ext or fmt).lower()
+    path = client.save_bytes(dl["body"], out_dir, os.path.basename(stem), ext)
+    data = {
+        "path": path, "job_id": job_id,
+        "chapters": done.get("chapters") or n_chapters, "format": ext,
+        "chapter_titles": chapters or [],
+        "message": "Done. Saved to %s (%s chapters, format %s)."
+                   % (path, done.get("chapters") or n_chapters or "?", ext),
+    }
+    if done.get("duration_s") is not None:
+        data["duration_s"] = done.get("duration_s")
+    return client.ok_envelope(data, audio_path=path)
 
 
 def _poll_audiobook_job(base_url, job_id, timeout, started_msg=None,

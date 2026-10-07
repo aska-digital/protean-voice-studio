@@ -148,6 +148,99 @@ def parse_json_body(result):
         return None
 
 
+def is_sse_response(result):
+    """True when a transport result carries a text/event-stream (SSE) body.
+
+    POST /audiobook streams SSE (started -> per-chapter -> assembling ->
+    mastering -> done), so a plain json.loads of the body always fails.
+    Detected via content-type, falling back to a `data:` body sniff.
+    """
+    if not isinstance(result, dict):
+        return False
+    headers = result.get("headers") or {}
+    ctype = ""
+    try:
+        ctype = str(headers.get("content-type", "")) if isinstance(headers, dict) else ""
+    except Exception:
+        ctype = ""
+    if "text/event-stream" in ctype.lower():
+        return True
+    try:
+        raw = result.get("body") or b""
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        return raw.lstrip().startswith("data:")
+    except Exception:
+        return False
+
+
+def parse_sse_frames(body):
+    """Parse a text/event-stream body into a list of event payload dicts.
+
+    Accepts bytes or str. Blank-line-separated blocks; `data:` lines carry
+    JSON payloads, `:` comment/keepalive lines are skipped. Blocks whose
+    data is not JSON are skipped. Never raises: unusable input -> [].
+    """
+    try:
+        if isinstance(body, bytes):
+            body = body.decode("utf-8", errors="replace")
+        if not isinstance(body, str) or not body.strip():
+            return []
+        frames = []
+        # SSE events are separated by blank lines; normalize CRLF first.
+        for block in body.replace("\r\n", "\n").split("\n\n"):
+            data_lines = []
+            for line in block.split("\n"):
+                line = line.strip()
+                if not line or line.startswith(":"):
+                    continue
+                if line.startswith("data:"):
+                    data_lines.append(line[5:].strip())
+            if not data_lines:
+                continue
+            for chunk in ("\n".join(data_lines),):
+                try:
+                    payload = json.loads(chunk)
+                except Exception:
+                    continue
+                if isinstance(payload, dict):
+                    frames.append(payload)
+        return frames
+    except Exception:
+        return []
+
+
+def extract_audiobook_done(frames):
+    """Extract the terminal result of a POST /audiobook SSE stream.
+
+    Returns {"job_id", "output", "chapters", "duration_s"} when a `done`
+    event is present, else None. job_id comes from the `started` event;
+    output/chapters/duration_s come from the `done` event.
+    """
+    try:
+        if not isinstance(frames, list) or not frames:
+            return None
+        job_id = None
+        for f in frames:
+            if isinstance(f, dict) and f.get("job_id"):
+                job_id = f.get("job_id")
+                break
+        done = None
+        for f in frames:
+            if isinstance(f, dict) and str(f.get("type") or "").lower() == "done":
+                done = f
+        if not isinstance(done, dict) or not done.get("output"):
+            return None
+        return {
+            "job_id": job_id,
+            "output": done.get("output"),
+            "chapters": done.get("chapters"),
+            "duration_s": done.get("duration_s"),
+        }
+    except Exception:
+        return None
+
+
 # ---- JSON envelopes (registry contract: handlers return JSON strings) ----
 
 def ok_envelope(data, audio_path=None):

@@ -252,6 +252,77 @@ class LongformTests(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_sse_audiobook_download_roundtrip(self):
+        sse_body = (
+            'data: {"type": "started", "job_id": "ssej1", "chapters": 2}\n\n'
+            'data: {"type": "chapter", "index": 0, "total": 2, "title": "Ch1",'
+            ' "duration_s": 2.0}\n\n'
+            'data: {"type": "assembling"}\n\n'
+            'data: {"type": "mastering", "preset": "podcast"}\n\n'
+            'data: {"type": "done", "output": "audiobook_ssej1.mp3",'
+            ' "chapters": 2, "duration_s": 3.9}\n\n'
+        ).encode()
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+            f.write("# Ch1\n\nHello.\n\n# Ch2\n\nWorld.\n")
+            path = f.name
+        try:
+            plan = {"status": 200, "body": b'{"chapters": 2}', "headers": {}}
+            sse = {"status": 200, "body": sse_body,
+                   "headers": {"content-type": "text/event-stream; charset=utf-8"}}
+            job = {"status": 200,
+                   "body": json.dumps({"id": "ssej1", "status": "done"}).encode(),
+                   "headers": {}}
+            audio = {"status": 200, "body": b"FAKEMP3BYTES",
+                     "headers": {"content-type": "audio/mpeg"}}
+            with tempfile.TemporaryDirectory() as tmp:
+                with mock.patch("voicestudio.client.api_post_json",
+                                side_effect=[plan, sse]), \
+                     mock.patch("voicestudio.client.api_get",
+                                side_effect=[job, audio]):
+                    env = json.loads(tools_longform.vs_longform(
+                        {"file": path, "voice": "v", "format": "mp3"},
+                        base_url="http://127.0.0.1:3900", out_dir=tmp))
+                    self.assertTrue(env["success"], env)
+                    self.assertEqual(env["data"]["job_id"], "ssej1")
+                    self.assertTrue(env["audio_path"].endswith(".mp3"))
+                    self.assertTrue(os.path.isfile(env["audio_path"]))
+                    with open(env["audio_path"], "rb") as fh:
+                        self.assertEqual(fh.read(), b"FAKEMP3BYTES")
+        finally:
+            os.unlink(path)
+
+
+class LiveLongformTests(unittest.TestCase):
+    """Live 2-chapter vs_longform regression against http://127.0.0.1:3900.
+
+    Skipped when the server is unreachable so the suite stays green without
+    a server; runs for real (render + artifact download) when it is up.
+    """
+
+    BASE = "http://127.0.0.1:3900"
+
+    def test_live_two_chapter_longform(self):
+        if not vc.is_available(self.BASE, timeout=3):
+            self.skipTest("VoiceStudio server not reachable at %s" % self.BASE)
+        script = ("# Ch1\n\nHello world, this is chapter one.\n\n"
+                  "# Ch2\n\nAnd this is chapter two, goodbye.\n")
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+            f.write(script)
+            path = f.name
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                raw = tools_longform.vs_longform(
+                    {"file": path, "voice": "c79141c4", "format": "mp3"},
+                    base_url=self.BASE, out_dir=tmp, timeout_s=600)
+                env = json.loads(raw)
+                self.assertTrue(env["success"], env)
+                self.assertIn("audio_path", env)
+                self.assertTrue(os.path.isfile(env["audio_path"]),
+                                env["audio_path"])
+                self.assertGreater(os.path.getsize(env["audio_path"]), 0)
+        finally:
+            os.unlink(path)
+
 
 class DubStatusTests(unittest.TestCase):
     def test_bad_video_E11(self):
