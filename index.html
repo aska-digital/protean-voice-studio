@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>voicestudio — VoiceStudio sidecar client for Hermes Agent</title>
+<meta name="description" content="A Hermes Agent plugin that talks to a local VoiceStudio text-to-speech server: speak, design voices, render audiobooks, dub videos.">
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --gold:#d4a056;
+    --ok:#3fb950;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    line-height:1.6}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px}
+  header.hero{padding:72px 0 40px;border-bottom:1px solid var(--line)}
+  .kicker{color:var(--gold);font-size:13px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 12px}
+  h1{font-size:40px;line-height:1.15;margin:0 0 12px;letter-spacing:-.01em}
+  h1 .dim{color:var(--muted);font-weight:400}
+  .lede{font-size:18px;color:var(--muted);max-width:640px;margin:0 0 24px}
+  .btns{display:flex;gap:12px;flex-wrap:wrap}
+  .btn{display:inline-block;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px}
+  .btn.primary{background:var(--accent);color:#0d1117}
+  .btn.ghost{border:1px solid var(--line);color:var(--text)}
+  .badges{margin-top:20px;display:flex;gap:8px;flex-wrap:wrap}
+  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);
+    border-radius:20px;padding:3px 12px}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:24px;margin:0 0 16px}
+  p{margin:0 0 12px;color:var(--text)}
+  p.muted, .muted{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .card h3 code{color:var(--accent);font-size:15px}
+  .card .cmd{font-size:12px;color:var(--gold);font-family:ui-monospace,Menlo,Consolas,monospace}
+  .card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  pre{background:#010409;border:1px solid var(--line);border-radius:8px;
+    padding:16px;overflow-x:auto;font-size:13.5px;line-height:1.55}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre code{color:#c9d1d9}
+  .cfg{display:grid;grid-template-columns:150px 1fr;gap:8px 16px;font-size:15px}
+  .cfg dt{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--accent);font-size:14px}
+  .cfg dd{margin:0;color:var(--muted)}
+  ul.tight{margin:8px 0;padding-left:20px;color:var(--muted)}
+  ul.tight li{margin:4px 0}
+  footer{padding:32px 0 56px;color:var(--muted);font-size:14px}
+  footer a{color:var(--accent);text-decoration:none}
+  a{color:var(--accent)}
+  @media (max-width:600px){ h1{font-size:30px} .cfg{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <p class="kicker">Hermes Agent plugin</p>
+    <h1>voicestudio <span class="dim">/ protean-voice-studio</span></h1>
+    <p class="lede">A client for a locally running VoiceStudio text-to-speech server.
+      Speak text, design voices, render chaptered audiobooks, and dub videos,
+      all from inside Hermes.</p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/aska-digital/protean-voice-studio">GitHub repo</a>
+      <a class="btn ghost" href="https://hermes-agent.nousresearch.com/docs/developer-guide/plugins/catalog-submission">Plugin catalog</a>
+    </div>
+    <div class="badges">
+      <span class="badge">MIT</span>
+      <span class="badge">requires Hermes &gt;= 0.21</span>
+      <span class="badge">Python stdlib only</span>
+      <span class="badge">no telemetry</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Six tools, one per intent</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><code>vs_speak</code></h3><span class="cmd">/vs-speak</span>
+        <p>Read short text aloud in a chosen voice and save it as an audio file. Up to about 6000 characters per take.</p>
+      </div>
+      <div class="card">
+        <h3><code>vs_design_voice</code></h3><span class="cmd">/vs-design</span>
+        <p>Describe a voice in plain words, or clone one from a short wav or m4a sample. Saved for reuse.</p>
+      </div>
+      <div class="card">
+        <h3><code>vs_list_voices</code></h3><span class="cmd">/vs-voices</span>
+        <p>Browse your saved voices, the shared gallery, and ready-made presets. Read-only and cheap.</p>
+      </div>
+      <div class="card">
+        <h3><code>vs_longform</code></h3><span class="cmd">/vs-longform</span>
+        <p>Turn a markdown script into chaptered audio. Headings split chapters. Interrupted renders resume.</p>
+      </div>
+      <div class="card">
+        <h3><code>vs_dub</code></h3><span class="cmd">/vs-dub</span>
+        <p>Dub a video into other languages using one of your voices. Per-language progress included.</p>
+      </div>
+      <div class="card">
+        <h3><code>vs_status</code></h3><span class="cmd">/vs-status</span>
+        <p>Check that VoiceStudio is running, which engine is loaded, and what is missing.</p>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:16px">Each tool is mirrored as a slash command, and the
+      bundled <code>voice-studio</code> skill ships usage guidance.</p>
+  </section>
+
+  <section>
+    <h2>Prerequisites</h2>
+    <p>A local <a href="https://github.com/debpalash/VoiceStudio">VoiceStudio</a> server,
+      default <code>http://127.0.0.1:3900</code>. Start the VoiceStudio app first.
+      <code>/vs-status</code> tells you when it is back.</p>
+  </section>
+
+  <section>
+    <h2>Install</h2>
+    <p>From the Hermes plugin catalog:</p>
+    <pre><code>hermes plugins install voicestudio</code></pre>
+    <p>Manual install. Point Hermes at the <code>voicestudio/</code> subdirectory,
+      which carries the manifest and the package together:</p>
+    <pre><code>git clone https://github.com/aska-digital/protean-voice-studio
+hermes plugins install ./protean-voice-studio/voicestudio</code></pre>
+    <p class="muted">The plugin installs disabled (opt-in). Enable it with
+      <code>hermes plugins enable voicestudio</code>.</p>
+  </section>
+
+  <section>
+    <h2>Configure</h2>
+    <dl class="cfg">
+      <dt>base_url</dt><dd>VoiceStudio server base URL (default <code>http://127.0.0.1:3900</code>).</dd>
+      <dt>default_voice</dt><dd>Default narrator voice id when the user names none.</dd>
+      <dt>default_engine</dt><dd>Preferred engine when several are loaded.</dd>
+      <dt>timeout_s</dt><dd>Read timeout in seconds for generation calls (default 600).</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Long-form script markup</h2>
+    <p class="muted"><code>vs_longform</code> accepts a closed markup set. Anything else is read aloud literally, so strip it first.</p>
+    <ul class="tight">
+      <li><code>[pause]</code>, <code>[pause 500ms]</code></li>
+      <li><code>[slow]</code>, <code>[fast]</code>, <code>[emphasis]</code>, <code>[spell]</code> spans</li>
+      <li><code>[[word|say-this]]</code> pronunciation pins</li>
+      <li><code>[voice:NAME]</code> voice switches</li>
+      <li><code>#</code> headings split chapters</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Disclosure</h2>
+    <ul class="tight">
+      <li>All network traffic stays between Hermes and your VoiceStudio server. Nothing is sent to third-party services.</li>
+      <li><code>vs_dub</code> uploads your video file to the VoiceStudio server. <code>vs_design_voice --sample</code> uploads your sample recording. Both stay on your local server.</li>
+      <li>The plugin reads the script, video, and sample files you point it at, and writes generated audio under the plugin output directory (or the <code>--out_path</code> you give).</li>
+      <li>No credentials are read or stored. No telemetry. No self-updates: catalog installs stay pinned to the reviewed commit.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Develop</h2>
+    <pre><code>bash run_tests.sh   # unit suite, mocked HTTP, no server needed</code></pre>
+    <p class="muted">Live integration tests need the VoiceStudio server running.</p>
+  </section>
+
+  <footer>
+    MIT. Built by <a href="https://github.com/aska-digital">aska-digital</a> for the
+    <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> plugin catalog.
+    Based on <a href="https://github.com/debpalash/VoiceStudio">debpalash/VoiceStudio</a>.
+  </footer>
+
+</div>
+</body>
+</html>
