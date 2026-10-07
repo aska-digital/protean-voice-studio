@@ -4,6 +4,7 @@ manifest_version: 2
 api_version: 1
 description: "VoiceStudio text-to-speech sidecar client: speak, design voices, long-form chapters, dubbing, status"
 license: MIT
+requires_hermes: ">=0.21"
 tags: [tts, voice, audio]
 provides_tools:
   - vs_speak
