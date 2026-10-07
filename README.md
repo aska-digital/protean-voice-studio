@@ -3,6 +3,8 @@
 VoiceStudio text-to-speech sidecar client for Hermes Agent, based on
 https://github.com/debpalash/VoiceStudio.
 
+Site: https://aska-digital.github.io/protean-voice-studio/
+
 ## What it does
 
 Six tools, one per user intent:
