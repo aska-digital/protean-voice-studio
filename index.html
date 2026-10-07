@@ -4,172 +4,237 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>protean-voice-studio | give Hermes a voice</title>
-<meta name="description" content="A Hermes Agent plugin that talks to a local VoiceStudio text-to-speech server: speak, design voices, render audiobooks, dub videos.">
+<title>voice-studio | Open Source AI Voice Studio, in Hermes</title>
+<meta name="description" content="A Hermes Agent plugin for the open-source VoiceStudio app: voice cloning, voice design, video dubbing and audiobook creation, driven from chat, rendered on your machine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0b0e14; --panel:#11161f; --panel2:#151b26; --line:#232b3a;
-  --ink:#e8ecf3; --muted:#9aa5b8; --dim:#6b7488;
-  --accent:#7dd3fc; --accent-dim:#3b82a6; --ok:#7ee8a2; --warn:#ffd479; --bad:#ff9c9c;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --bg:#100f0d; --panel:#171512; --panel2:#1e1a16; --line:rgba(227,180,80,.16); --line2:rgba(242,232,213,.09);
+  --ink:#f2e8d5; --muted:#b3a78f; --dim:#7d7461;
+  --gold:#e3b450; --gold-hi:#fbe7a1; --gold-dim:#8a6a2e;
+  --ok:#7ee8a2; --warn:#ffd479;
+  --disp:"Bricolage Grotesque",-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:880px;margin:0 auto;padding:0 22px}
-header.top{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,14,20,.92);backdrop-filter:blur(8px);z-index:10}
-header.top .wrap{display:flex;align-items:center;gap:18px;padding-top:14px;padding-bottom:14px}
-.brand{font-family:var(--mono);font-size:15px;color:var(--ink);text-decoration:none}
-.brand b{color:var(--accent)}
-nav{margin-left:auto;display:flex;gap:16px;font-size:14px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+a{color:var(--gold)}
+
+/* header */
+header.top{position:sticky;top:0;z-index:20;background:rgba(16,15,13,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line2)}
+header.top .wrap{display:flex;align-items:center;gap:20px;padding-top:13px;padding-bottom:13px}
+.brand{font-family:var(--mono);font-size:15px;color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:9px}
+.brand .pulse{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}
+nav{margin-left:auto;display:flex;gap:20px;font-size:14px}
 nav a{color:var(--muted);text-decoration:none}
 nav a:hover{color:var(--ink)}
-.hero{padding:72px 0 48px}
-.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase;margin:0 0 18px}
-h1{font-size:clamp(34px,6vw,52px);line-height:1.12;margin:0 0 18px;font-weight:650;letter-spacing:-.01em}
-h1 .slash{color:var(--accent)}
-.lede{font-size:19px;color:var(--muted);max-width:640px;margin:0 0 18px}
-.lede strong{color:var(--ink);font-weight:600}
-.cta{display:flex;flex-wrap:wrap;gap:12px;margin:30px 0 34px}
-.btn{display:inline-block;padding:11px 20px;border-radius:9px;font-size:15px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--ink);background:var(--panel)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#06121a}
-.btn:hover{filter:brightness(1.1)}
-.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
-.badge{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:4px 12px;background:var(--panel)}
-.badge .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px}
-.badge.warn .dot{background:var(--warn)}
-section{padding:44px 0;border-top:1px solid var(--line)}
-h2{font-size:26px;margin:0 0 6px;font-weight:650;letter-spacing:-.01em}
-h2 .n{font-family:var(--mono);font-size:15px;color:var(--dim);font-weight:400;margin-right:10px}
-.sub{color:var(--muted);margin:0 0 22px;max-width:660px}
+.btn{display:inline-block;padding:11px 22px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--ink);background:var(--panel);font-family:var(--disp)}
+.btn.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold));border-color:var(--gold-dim);color:#241a08}
+.btn:hover{filter:brightness(1.08)}
+.btn.sm{padding:8px 16px;font-size:13.5px}
+
+/* hero */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line2)}
+.hero .bg{position:absolute;inset:0;background:url("assets/signal-field.svg") center/cover no-repeat,radial-gradient(ellipse 70% 55% at 50% 38%,rgba(227,180,80,.10),transparent 70%);pointer-events:none}
+.hero .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,15,13,.25),rgba(16,15,13,0) 40%,rgba(16,15,13,.55))}
+.hero .wrap{position:relative;padding-top:110px;padding-bottom:90px;text-align:center}
+.chip{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);border:1px solid var(--line);border-radius:999px;padding:7px 18px;background:rgba(23,21,18,.75);margin-bottom:26px}
+.hero h1{font-family:var(--disp);font-weight:800;font-size:clamp(42px,7.5vw,84px);line-height:1.02;letter-spacing:-.02em;margin:0 0 22px}
+.hero h1 .gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .caps{font-family:var(--mono);font-size:clamp(13px,2vw,16px);color:var(--muted);max-width:720px;margin:0 auto 8px;line-height:1.9}
+.hero .caps strong{color:var(--ink);font-weight:500}
+.hero .cta{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:34px 0 40px}
+.install{max-width:560px;margin:0 auto;text-align:left;background:rgba(10,9,8,.82);border:1px solid var(--line);border-radius:12px;padding:18px 20px;position:relative;backdrop-filter:blur(4px)}
+.install pre{margin:0;font-family:var(--mono);font-size:14px;line-height:1.8;color:#e8dcc2;overflow-x:auto}
+.install button{position:absolute;top:12px;right:12px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:7px;font-size:12px;padding:5px 12px;cursor:pointer;font-family:var(--mono)}
+.install button:hover{color:var(--ink)}
+.hero .fine{margin-top:18px;font-size:13px;color:var(--dim)}
+.hero .fine a{color:var(--muted)}
+
+/* sections */
+section.block{padding:84px 0;border-bottom:1px solid var(--line2)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin:0 0 14px}
+h2{font-family:var(--disp);font-weight:700;font-size:clamp(30px,4.5vw,46px);letter-spacing:-.015em;line-height:1.08;margin:0 0 14px}
+.sub{color:var(--muted);font-size:17px;max-width:680px;margin:0 0 40px}
 .sub strong{color:var(--ink);font-weight:600}
-.grid{display:grid;gap:14px}
-@media(min-width:700px){.grid.cols3{grid-template-columns:repeat(3,1fr)}.grid.cols2{grid-template-columns:repeat(2,1fr)}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
-.card h3{margin:0 0 8px;font-size:16px}
-.card h3 code{color:var(--accent)}
-.card p{margin:0;color:var(--muted);font-size:14.5px}
-.card .tag{font-family:var(--mono);font-size:12px;color:var(--accent)}
-.card .punch{font-size:17px;font-weight:650;color:var(--ink);margin:0 0 8px;letter-spacing:-.01em}
-pre{background:#080b10;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.6;color:#cdd6e4}
+
+/* feature cards */
+.grid{display:grid;gap:16px}
+@media(min-width:760px){.grid.cols3{grid-template-columns:repeat(3,1fr)}.grid.cols2{grid-template-columns:repeat(2,1fr)}}
+.feat{background:var(--panel);border:1px solid var(--line2);border-radius:14px;padding:26px;position:relative;overflow:hidden;transition:border-color .2s}
+.feat:hover{border-color:var(--line)}
+.feat .num{font-family:var(--mono);font-size:13px;color:var(--gold-dim);letter-spacing:.1em;margin-bottom:14px}
+.feat .punch{font-family:var(--disp);font-weight:700;font-size:21px;letter-spacing:-.01em;margin:0 0 10px;line-height:1.25}
+.feat p{margin:0 0 16px;color:var(--muted);font-size:14.5px}
+.feat .cmdtag{font-family:var(--mono);font-size:12.5px;color:var(--gold);background:rgba(227,180,80,.08);border:1px solid var(--line);border-radius:7px;padding:4px 10px;display:inline-block;margin-right:6px;margin-bottom:6px}
+.langs{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.langs span{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--line2);border-radius:6px;padding:3px 9px}
+
+/* comparison table */
+.cmp{border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:var(--panel)}
+.cmp table{width:100%;border-collapse:collapse;font-size:15px;margin:0}
+.cmp th,.cmp td{text-align:left;padding:15px 20px;border-bottom:1px solid var(--line2);vertical-align:top}
+.cmp tr:last-child th,.cmp tr:last-child td{border-bottom:none}
+.cmp th{font-family:var(--mono);font-size:12.5px;color:var(--dim);font-weight:500;width:26%}
+.cmp td.us{color:var(--ink)}
+.cmp td.them{color:var(--dim)}
+.cmp td .t{font-family:var(--mono);font-size:12px;color:var(--gold);display:block;margin-bottom:4px;letter-spacing:.08em}
+
+/* code + notes */
+pre{background:#0a0908;border:1px solid var(--line2);border-radius:12px;padding:18px 20px;overflow-x:auto;font-family:var(--mono);font-size:14px;line-height:1.75;color:#e8dcc2}
 code{font-family:var(--mono);font-size:.92em}
-.cmd{position:relative;margin:0 0 14px}
-.cmd button{position:absolute;top:8px;right:8px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:7px;font-size:12px;padding:5px 10px;cursor:pointer;font-family:var(--mono)}
-.cmd button:hover{color:var(--ink)}
-table{width:100%;border-collapse:collapse;font-size:14.5px;margin:0 0 18px}
-th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-family:var(--mono);font-size:12.5px;color:var(--dim);font-weight:500}
-td.m{font-family:var(--mono);font-size:13.5px;color:var(--accent)}
-.note{border-left:3px solid var(--accent-dim);padding:2px 0 2px 16px;color:var(--muted);font-size:14.5px;margin:0 0 18px}
+.cmdwrap{position:relative;margin:0 0 16px}
+.cmdwrap button{position:absolute;top:10px;right:10px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:7px;font-size:12px;padding:5px 12px;cursor:pointer;font-family:var(--mono)}
+.cmdwrap button:hover{color:var(--ink)}
+.note{border-left:3px solid var(--gold-dim);padding:4px 0 4px 18px;color:var(--muted);font-size:14.5px;margin:0 0 20px;max-width:720px}
 .note strong{color:var(--ink)}
-ul.tight{margin:0 0 18px;padding-left:20px;color:var(--muted)}
-ul.tight li{margin-bottom:6px}
+table.plain{width:100%;border-collapse:collapse;font-size:14.5px;margin:0 0 20px;max-width:720px}
+table.plain th,table.plain td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
+table.plain th{font-family:var(--mono);font-size:12.5px;color:var(--dim);font-weight:500}
+td.m{font-family:var(--mono);font-size:13.5px;color:var(--gold)}
+ul.tight{margin:0 0 20px;padding-left:20px;color:var(--muted);max-width:720px}
+ul.tight li{margin-bottom:8px}
 ul.tight strong{color:var(--ink);font-weight:600}
-details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:10px}
-details summary{cursor:pointer;font-weight:600;font-size:15.5px;list-style:none}
+
+/* faq */
+details{background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:18px 22px;margin-bottom:10px;max-width:760px}
+details summary{cursor:pointer;font-weight:600;font-size:16px;font-family:var(--disp);list-style:none}
 details summary::-webkit-details-marker{display:none}
-details summary::before{content:"+ ";color:var(--accent);font-family:var(--mono)}
+details summary::before{content:"+ ";color:var(--gold);font-family:var(--mono)}
 details[open] summary::before{content:"– "}
-details p{color:var(--muted);font-size:14.5px;margin:10px 0 2px}
-details code{color:var(--accent)}
-footer{border-top:1px solid var(--line);padding:30px 0 60px;color:var(--dim);font-size:13.5px}
-footer .wrap{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+details p{color:var(--muted);font-size:14.5px;margin:12px 0 2px}
+details code{color:var(--gold)}
+
+/* closing cta */
+.closing{padding:100px 0;text-align:center;position:relative;overflow:hidden}
+.closing .bg{position:absolute;inset:0;background:url("assets/signal-field.svg") center/cover no-repeat;opacity:.5;pointer-events:none;transform:rotate(180deg)}
+.closing .wrap{position:relative}
+.closing .kickerline{font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;color:var(--gold);margin-bottom:18px}
+.closing h2{margin-bottom:26px}
+
+/* badges */
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0;justify-content:center}
+.badge{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line2);border-radius:999px;padding:5px 14px;background:rgba(23,21,18,.7)}
+.badge .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:7px}
+
+footer{padding:44px 0 70px;color:var(--dim);font-size:13.5px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+footer .tagline{font-family:var(--disp);font-size:17px;color:var(--muted);font-weight:500;width:100%;margin-bottom:6px}
 footer a{color:var(--muted);text-decoration:none}
 footer a:hover{color:var(--ink)}
 .spacer{flex:1}
-@media(max-width:640px){nav{display:none}}
+@media(max-width:680px){nav{display:none}.hero .wrap{padding-top:70px;padding-bottom:60px}}
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <a class="brand" href="#top"><b>protean</b>-voice-studio</a>
-  <nav><a href="#install">Install</a><a href="#tools">Tools</a><a href="#faq">FAQ</a><a href="#disclosure">Disclosure</a><a href="#source">Source</a></nav>
+  <a class="brand" href="#top"><span class="pulse"></span>voice-studio</a>
+  <nav><a href="#features">Features</a><a href="#why">Why</a><a href="#install">Install</a><a href="#faq">FAQ</a><a href="#source">Source</a></nav>
+  <a class="btn sm gold" href="#install" style="margin-left:8px">Install</a>
 </div></header>
 
-<div class="wrap" id="top">
-<div class="hero">
-  <p class="kicker">Hermes Agent plugin · catalog submission in review</p>
-  <h1>Give Hermes <span class="slash">a voice.</span></h1>
-  <p class="lede"><strong>voicestudio</strong> connects Hermes to a locally running
-    <a href="https://github.com/debpalash/VoiceStudio" style="color:var(--accent)">VoiceStudio</a>
-    server, the open-source AI voice studio. Clone a voice from a three-second sample.
-    Dub any video into any language. Turn a script into a chaptered audiobook.
-    All of it from a chat message, all of it on your machine.</p>
-  <div class="cta">
-    <a class="btn primary" href="#install">Install via Hermes</a>
-    <a class="btn" href="https://github.com/aska-digital/protean-voice-studio">View source</a>
-  </div>
-  <div class="badges">
-    <span class="badge"><span class="dot"></span>v1.0.0 · pinned <code>4cf4ab2</code></span>
-    <span class="badge"><span class="dot"></span>stdlib only · zero dependencies</span>
-    <span class="badge"><span class="dot"></span>local server only · no third-party network</span>
-    <span class="badge"><span class="dot"></span>no telemetry · no stored credentials</span>
+<div class="hero" id="top">
+  <div class="bg"></div>
+  <div class="wrap">
+    <span class="chip">fully-local</span>
+    <h1>Open Source AI Voice Studio,<br><span class="gold">in Hermes.</span></h1>
+    <p class="caps"><strong>voice cloning, voice design, video dubbing &amp; audiobook creation</strong><br>every one of them a Hermes tool · every byte rendered on your machine</p>
+    <div class="cta">
+      <a class="btn gold" href="#install">Install the plugin · Free · Open source</a>
+      <a class="btn" href="https://github.com/aska-digital/protean-voice-studio">View source</a>
+    </div>
+    <div class="install">
+      <button onclick="navigator.clipboard.writeText('hermes plugins install voicestudio\nhermes plugins enable voicestudio')">Copy</button>
+      <pre>hermes plugins install voicestudio
+hermes plugins enable voicestudio</pre>
+    </div>
+    <p class="fine">Needs the free, open-source VoiceStudio app running locally · <a href="https://voicestudio.sh">voicestudio.sh</a></p>
   </div>
 </div>
 
-<section id="install">
-  <h2><span class="n">01</span>Install</h2>
-  <p class="sub">Two ways in. The catalog route pins the exact commit a maintainer reviewed.</p>
-  <div class="cmd"><pre><code>hermes plugins install voicestudio
-hermes plugins enable voicestudio</code></pre></div>
-  <p class="sub">Manual install. Point Hermes at the <code>voicestudio/</code> subdirectory, which carries the manifest and the package together:</p>
-  <div class="cmd"><pre><code>git clone https://github.com/aska-digital/protean-voice-studio
-hermes plugins install ./protean-voice-studio/voicestudio</code></pre></div>
-  <p class="note"><strong>Prerequisite:</strong> the free, open-source VoiceStudio app running
-    locally (default <code>http://127.0.0.1:3900</code>). Get it at
-    <a href="https://voicestudio.sh" style="color:var(--accent)">voicestudio.sh</a>, start it,
-    then <code>/vs-status</code> tells you when it is back.</p>
-</section>
-
-<section id="why">
-  <h2><span class="n">02</span>Why this way</h2>
-  <p class="sub">Voice AI as owned infrastructure, not rented SaaS. The plugin inherits that posture.</p>
+<div class="wrap">
+<section class="block" id="features">
+  <p class="eyebrow">What it does</p>
+  <h2>Six tools. One job each.</h2>
+  <p class="sub">Each tool is mirrored as a slash command, and the bundled <code>voice-studio</code> skill ships usage guidance. Say what you want in chat. Hermes does the rest.</p>
   <div class="grid cols3">
-    <div class="card"><p class="punch">Your voices never leave the machine.</p>
-      <p>No API keys, no per-character billing, no audio uploaded to a vendor. The server is yours.</p></div>
-    <div class="card"><p class="punch">One surface for every voice job.</p>
-      <p>Speak, design, browse, narrate, dub, check. Six tools with one job each, each mirrored as a slash command.</p></div>
-    <div class="card"><p class="punch">Nothing to maintain.</p>
-      <p>Python stdlib only, no dependencies to rot. Catalog installs stay pinned to the reviewed commit.</p></div>
-  </div>
-</section>
-
-<section id="tools">
-  <h2><span class="n">03</span>The tools</h2>
-  <p class="sub">Each tool is mirrored as a slash command, and the bundled <code>voice-studio</code> skill ships usage guidance.</p>
-  <div class="grid cols2">
-    <div class="card"><span class="tag">/vs-speak</span><h3><code>vs_speak</code></h3>
-      <p class="punch">Say it like you mean it.</p>
-      <p>Read short text aloud in a chosen voice and save it as an audio file. Up to about 6000 characters per take, with repeatable seeds.</p></div>
-    <div class="card"><span class="tag">/vs-design</span><h3><code>vs_design_voice</code></h3>
+    <div class="feat"><div class="num">01</div>
       <p class="punch">Mirror a voice from three seconds.</p>
-      <p>Describe a voice in plain words, or clone one from a short wav or m4a sample. Saved for reuse, with a preview take.</p></div>
-    <div class="card"><span class="tag">/vs-voices</span><h3><code>vs_list_voices</code></h3>
-      <p class="punch">Every voice you own, one list.</p>
-      <p>Browse your saved voices, the shared gallery, and ready-made presets. Read-only and cheap. Call first when the user names no voice.</p></div>
-    <div class="card"><span class="tag">/vs-longform</span><h3><code>vs_longform</code></h3>
-      <p class="punch">Cast a script. Voice every role.</p>
-      <p>Turn a markdown script into chaptered audio. <code>#</code> headings split chapters, <code>[voice:NAME]</code> switches narrator mid-script. An interrupted render resumes with its job id.</p></div>
-    <div class="card"><span class="tag">/vs-dub</span><h3><code>vs_dub</code></h3>
+      <p>Clone a voice from a short wav or m4a sample. Saved for reuse, with a preview take before you commit.</p>
+      <span class="cmdtag">/vs-design --sample</span></div>
+    <div class="feat"><div class="num">02</div>
+      <p class="punch">Describe a voice. Get it.</p>
+      <p>Write the voice you hear in your head in plain words. The studio designs it, you keep it.</p>
+      <span class="cmdtag">/vs-design</span></div>
+    <div class="feat"><div class="num">03</div>
       <p class="punch">Any video, any language, same timing.</p>
-      <p>Dub a video into other languages using one of your voices. Reports per-language progress. Finished languages are kept if one fails.</p></div>
-    <div class="card"><span class="tag">/vs-status</span><h3><code>vs_status</code></h3>
-      <p class="punch">Is the studio awake?</p>
-      <p>Check that VoiceStudio is running, which engine is loaded, how many voices exist, and what is missing.</p></div>
+      <p>Dub a video into other languages with one of your voices. Finished languages are kept if one fails.</p>
+      <span class="cmdtag">/vs-dub</span>
+      <div class="langs"><span>ES</span><span>DE</span><span>FR</span><span>JA</span><span>+</span></div></div>
+    <div class="feat"><div class="num">04</div>
+      <p class="punch">Cast a script. Voice every role.</p>
+      <p>Turn markdown into chaptered audio. Headings split chapters. Switch narrator mid-script. Interrupted renders resume.</p>
+      <span class="cmdtag">/vs-longform</span></div>
+    <div class="feat"><div class="num">05</div>
+      <p class="punch">Say it like you mean it.</p>
+      <p>Read short text aloud in a chosen voice and save it as an audio file. Repeatable seeds for consistent takes.</p>
+      <span class="cmdtag">/vs-speak</span></div>
+    <div class="feat"><div class="num">06</div>
+      <p class="punch">Every voice you own, one list.</p>
+      <p>Browse saved voices, the shared gallery, and presets, then check the studio is awake. Read-only and cheap.</p>
+      <span class="cmdtag">/vs-voices</span><span class="cmdtag">/vs-status</span></div>
   </div>
 </section>
 
-<section id="audiobook">
-  <h2><span class="n">04</span>In practice: an audiobook</h2>
-  <p class="sub">A chaptered render, start to finish, in three messages.</p>
-  <div class="cmd"><pre><code>/vs-voices --search narrator
+<section class="block" id="why">
+  <p class="eyebrow">Why this way</p>
+  <h2>Voice AI as owned infrastructure,<br>not rented SaaS.</h2>
+  <p class="sub">The plugin inherits the posture of the app it drives: your machine does the work, your voices stay yours.</p>
+  <div class="cmp">
+    <table>
+      <tr><th></th><td><span class="t">VOICESTUDIO PLUGIN</span></td><td><span class="t">CLOUD TTS APIS</span></td></tr>
+      <tr><th>Runs on</th><td class="us">Your machine</td><td class="them">Their cloud</td></tr>
+      <tr><th>Voice data</th><td class="us">Never leaves your machine</td><td class="them">Uploaded to vendor servers</td></tr>
+      <tr><th>Pricing</th><td class="us">Free · open source (MIT)</td><td class="them">Per-character billing</td></tr>
+      <tr><th>Voice cloning</th><td class="us">From a sample you provide</td><td class="them">Often restricted or paywalled</td></tr>
+      <tr><th>Source</th><td class="us">Open</td><td class="them">Closed</td></tr>
+      <tr><th>Internet</th><td class="us">Not needed after setup</td><td class="them">Required</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="block" id="install">
+  <p class="eyebrow">Install</p>
+  <h2>Two commands in.</h2>
+  <p class="sub">The catalog route pins the exact commit a maintainer reviewed. Manual install points at the <code>voicestudio/</code> subdirectory, which carries the manifest and the package together.</p>
+  <div class="cmdwrap"><button onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').innerText)">Copy</button>
+  <pre><code>hermes plugins install voicestudio
+hermes plugins enable voicestudio</code></pre></div>
+  <div class="cmdwrap"><button onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').innerText)">Copy</button>
+  <pre><code>git clone https://github.com/aska-digital/protean-voice-studio
+hermes plugins install ./protean-voice-studio/voicestudio</code></pre></div>
+  <p class="note"><strong>Prerequisite:</strong> the free, open-source VoiceStudio app, running locally
+    (default <code>http://127.0.0.1:3900</code>). Get it at
+    <a href="https://voicestudio.sh">voicestudio.sh</a>, start it, then
+    <code>/vs-status</code> tells you when it is back.</p>
+  <p class="note"><strong>In practice: an audiobook, start to finish:</strong></p>
+  <div class="cmdwrap"><button onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').innerText)">Copy</button>
+  <pre><code>/vs-voices --search narrator
 /vs-longform --file episode.md --voice c79141c4 --format m4b \
   --title "Episode 12" --author "Aska Digital"</code></pre></div>
-  <p class="note">The plugin plans the chapters first, renders with progress, and fetches the
-    finished <code>.m4b</code> with chapters intact. If the render is interrupted, rerun with
-    <code>--resume &lt;job_id&gt;</code>. Nothing is lost.</p>
-  <p class="sub">Long-form scripts accept a closed markup set. Anything outside it is read aloud literally, so strip it first:</p>
-  <table>
+  <p class="note">The plugin plans the chapters first and renders with progress. If the render is
+    interrupted, rerun with <code>--resume &lt;job_id&gt;</code>. Nothing is lost.</p>
+</section>
+
+<section class="block" id="markup">
+  <p class="eyebrow">Scripting</p>
+  <h2>Long-form markup.</h2>
+  <p class="sub"><code>vs_longform</code> accepts a closed markup set. Anything outside it is read aloud literally, so strip it first.</p>
+  <table class="plain">
     <tr><th>Markup</th><th>Effect</th></tr>
     <tr><td class="m">[pause], [pause 500ms]</td><td>Silence, default or timed</td></tr>
     <tr><td class="m">[slow] / [fast] / [emphasis] / [spell]</td><td>Delivery spans</td></tr>
@@ -177,12 +242,8 @@ hermes plugins install ./protean-voice-studio/voicestudio</code></pre></div>
     <tr><td class="m">[voice:NAME]</td><td>Mid-script voice switch</td></tr>
     <tr><td class="m"># Heading</td><td>Starts a new chapter</td></tr>
   </table>
-</section>
-
-<section id="config">
-  <h2><span class="n">05</span>Configure</h2>
-  <p class="sub">Four settings, all optional.</p>
-  <table>
+  <p class="sub" style="margin-top:32px">Four settings, all optional.</p>
+  <table class="plain">
     <tr><th>Setting</th><th>What it does</th></tr>
     <tr><td class="m">base_url</td><td>VoiceStudio server base URL (default <code>http://127.0.0.1:3900</code>)</td></tr>
     <tr><td class="m">default_voice</td><td>Default narrator voice id when the user names none</td></tr>
@@ -191,37 +252,40 @@ hermes plugins install ./protean-voice-studio/voicestudio</code></pre></div>
   </table>
 </section>
 
-<section id="faq">
-  <h2><span class="n">06</span>Little questions, short answers</h2>
+<section class="block" id="faq">
+  <p class="eyebrow">Quick answers</p>
+  <h2>Little questions, short answers.</h2>
+  <div style="height:24px"></div>
   <details>
-    <summary>Do I need the VoiceStudio app?</summary>
-    <p>Yes. The plugin is a client for the app on your machine. Download it free at voicestudio.sh, start it, and run <code>/vs-status</code>.</p>
+    <summary>Is it really free?</summary>
+    <p>Yes. The plugin is MIT licensed, and the VoiceStudio desktop app it drives is free and open source.</p>
   </details>
   <details>
-    <summary>Does my voice data leave my machine?</summary>
-    <p>No. Everything travels between Hermes and your local VoiceStudio server. Dubbing uploads your video and cloning uploads your sample to that same local server. Nothing reaches a third party.</p>
+    <summary>Does it phone home?</summary>
+    <p>No account, no cloud. The plugin only talks to your local VoiceStudio server. Dubbing uploads your video and cloning uploads your sample to that same local server. Nothing reaches a third party.</p>
   </details>
   <details>
-    <summary>Can it clone anyone's voice?</summary>
-    <p>It clones from a sample recording you provide. Use your own voice, or one you have the right to use.</p>
+    <summary>Do I need a fancy GPU?</summary>
+    <p>No. The app runs on CPU; a GPU just makes everything faster.</p>
+  </details>
+  <details>
+    <summary>Can I clone any voice?</summary>
+    <p>Only with the owner's say-so. Impersonation and fraud are off the table.</p>
   </details>
   <details>
     <summary>Which Hermes version do I need?</summary>
-    <p>0.21 or newer. The manifest declares <code>requires_hermes: "&gt;=0.21"</code>.</p>
+    <p>0.21 or newer. The manifest declares it.</p>
   </details>
   <details>
     <summary>Is it in the plugin catalog?</summary>
     <p>The submission is in review. Until it lands, install manually from the repo URL.</p>
   </details>
-  <details>
-    <summary>What does it cost?</summary>
-    <p>Nothing. The plugin is MIT. The VoiceStudio desktop app is free and open source.</p>
-  </details>
 </section>
 
-<section id="disclosure">
-  <h2><span class="n">07</span>Disclosure</h2>
-  <p class="sub">What the plugin does on your machine, for the record.</p>
+<section class="block" id="disclosure">
+  <p class="eyebrow">Disclosure</p>
+  <h2>What it does on your machine.</h2>
+  <p class="sub">For the record.</p>
   <ul class="tight">
     <li>All network traffic stays between Hermes and your VoiceStudio server. <strong>Nothing is sent to third-party services.</strong></li>
     <li><code>vs_dub</code> uploads your video file to the VoiceStudio server. <code>vs_design_voice --sample</code> uploads your sample recording. Both stay on your local server.</li>
@@ -230,22 +294,36 @@ hermes plugins install ./protean-voice-studio/voicestudio</code></pre></div>
   </ul>
 </section>
 
-<section id="source">
-  <h2><span class="n">08</span>Source</h2>
-  <p class="sub">MIT licensed. Manifest plus package live together in <code>voicestudio/</code>; the catalog entry pins <code>subdir: voicestudio</code>.</p>
-  <div class="cta">
+<section class="block" id="source">
+  <p class="eyebrow">Source</p>
+  <h2>Open, pinned, tested.</h2>
+  <p class="sub">MIT licensed. Manifest plus package live together in <code>voicestudio/</code>; the catalog entry pins <code>subdir: voicestudio</code>. Unit suite: 32 passed, 1 skipped (mocked HTTP, no server needed). Run it with <code>bash run_tests.sh</code>.</p>
+  <div class="cta" style="display:flex;gap:12px;flex-wrap:wrap">
     <a class="btn" href="https://github.com/aska-digital/protean-voice-studio">aska-digital/protean-voice-studio</a>
     <a class="btn" href="https://github.com/aska-digital/protean-voice-studio/releases/tag/v1.0.0">Release v1.0.0</a>
   </div>
-  <p class="note">Unit suite: 32 passed, 1 skipped (mocked HTTP, no server needed). Run it with <code>bash run_tests.sh</code>. Install security scan verdict: safe.</p>
+  <div class="badges" style="justify-content:flex-start">
+    <span class="badge"><span class="dot"></span>v1.0.0 · pinned <code>4cf4ab2</code></span>
+    <span class="badge"><span class="dot"></span>stdlib only · zero dependencies</span>
+    <span class="badge"><span class="dot"></span>no telemetry · no stored credentials</span>
+  </div>
 </section>
+</div>
 
+<div class="closing">
+  <div class="bg"></div>
+  <div class="wrap">
+    <p class="kickerline">FREE · OPEN SOURCE · MIT</p>
+    <h2>Give Hermes a voice.</h2>
+    <a class="btn gold" href="#install">Install the plugin</a>
+  </div>
 </div>
 
 <footer><div class="wrap">
+  <p class="tagline">Voices belong in your hands. Open source, local by default.</p>
   <span>MIT · <a href="https://github.com/aska-digital">aska-digital</a> · for the <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> plugin catalog</span>
   <span class="spacer"></span>
-  <span>Based on <a href="https://github.com/debpalash/VoiceStudio">debpalash/VoiceStudio</a> · <a href="https://voicestudio.sh">voicestudio.sh</a></span>
+  <span>Drives <a href="https://voicestudio.sh">VoiceStudio</a> · <a href="https://github.com/debpalash/VoiceStudio">debpalash/VoiceStudio</a></span>
 </div></footer>
 </body>
 </html>
