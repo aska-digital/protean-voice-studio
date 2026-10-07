@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.mp3
+*.mp4
+*.m4a
+*.m4b
+*.wav
+.DS_Store

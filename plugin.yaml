@@ -1,0 +1,19 @@
+name: voicestudio
+version: 1.0.0
+manifest_version: 2
+api_version: 1
+description: "VoiceStudio text-to-speech sidecar client: speak, design voices, long-form chapters, dubbing, status"
+license: MIT
+tags: [tts, voice, audio]
+provides_tools:
+  - vs_speak
+  - vs_design_voice
+  - vs_list_voices
+  - vs_longform
+  - vs_dub
+  - vs_status
+config_schema:
+  base_url: {type: str, default: "http://127.0.0.1:3900", description: "VoiceStudio server base URL", required: false}
+  default_voice: {type: str, default: "", description: "Default narrator voice id when the user names none", required: false}
+  default_engine: {type: str, default: "", description: "Preferred engine when several are loaded", required: false}
+  timeout_s: {type: int, default: 600, description: "Read timeout in seconds for generation calls", required: false}
