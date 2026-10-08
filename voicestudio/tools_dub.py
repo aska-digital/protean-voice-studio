@@ -9,10 +9,12 @@ import os
 import time
 
 from . import client
-from .tools_speak import _cfg
+from .tools_speak import _cfg, check_input_file
 
 BASE_URL = client.DEFAULT_BASE_URL
 POLL_INTERVAL_S = 10
+
+VIDEO_EXTS = (".mp4", ".mov", ".mkv", ".webm", ".m4v")
 
 
 def vs_dub(args, **kwargs):
@@ -32,6 +34,10 @@ def vs_dub(args, **kwargs):
                 "I could not open '%s'. Check the path and that it is a video file. "
                 "Then try again." % (video or "(no file given)"),
                 code="E11_bad_video")
+        gate = check_input_file(video, VIDEO_EXTS, "Video", "E11_bad_video")
+        if gate is not None:
+            msg, code = gate
+            return client.err_envelope(msg, code=code)
         if not langs_raw:
             return client.err_envelope(
                 "Which languages should I dub into? Example: "

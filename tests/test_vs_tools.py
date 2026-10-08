@@ -442,5 +442,173 @@ class RegistrationTests(unittest.TestCase):
             self.assertTrue(s["name"] and s["description"] and "parameters" in s)
 
 
+
+class CTOHardeningTests(unittest.TestCase):
+    """Regression tests for CTO review items 1-5 (injection + path hardening)."""
+
+    def test_cfg_ignores_injected_args(self):
+        """Item 1: sensitive keys in per-call args must not steer the call."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("voicestudio.client.api_post_multipart",
+                            return_value=_audio_result()) as m:
+                raw = tools_speak.vs_speak(
+                    {"text": "Hi.", "voice": "v",
+                     "base_url": "http://evil:9", "out_dir": "/tmp/evil",
+                     "timeout_s": 1},
+                    base_url="http://127.0.0.1:3900", out_dir=tmp,
+                    timeout_s=600)
+                env = json.loads(raw)
+                self.assertTrue(env["success"], env)
+                self.assertEqual(m.call_args[0][0], "http://127.0.0.1:3900")
+                self.assertTrue(env["audio_path"].startswith(tmp), env)
+        # An injected default_voice must not satisfy the voice requirement.
+        raw = tools_speak.vs_speak(
+            {"text": "Hi.", "default_voice": "injected"},
+            base_url="http://x:1", default_voice="")
+        self.assertEqual(json.loads(raw)["code"], "E2_voice_missing")
+
+    def test_out_path_escape_rejected(self):
+        """Item 2: out_path traversal / absolute-outside / symlink rejected;
+        in-dir subpaths stay confined under plugin-data/voicestudio/."""
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"HERMES_HOME": home}):
+                plugdir = os.path.join(home, "plugin-data", "voicestudio")
+                for evil in ("../evil.mp3", "../../evil.mp3",
+                             "/tmp/cto-evil.mp3", "~/cto-evil.mp3"):
+                    with mock.patch("voicestudio.client.api_post_multipart",
+                                    return_value=_audio_result()):
+                        env = json.loads(tools_speak.vs_speak(
+                            {"text": "Hi.", "voice": "v", "out_path": evil},
+                            base_url="http://127.0.0.1:3900"))
+                    self.assertEqual(env["code"], "E_bad_out_path", evil)
+                    self.assertFalse(os.path.exists(
+                        os.path.realpath(os.path.expanduser(evil))))
+                # symlink inside the plugin dir pointing outside must fail
+                os.makedirs(plugdir, exist_ok=True)
+                with tempfile.NamedTemporaryFile(suffix=".mp3",
+                                                 delete=False) as outside:
+                    link = os.path.join(plugdir, "link.mp3")
+                    if os.path.exists(link):
+                        os.unlink(link)
+                    os.symlink(outside.name, link)
+                    with mock.patch("voicestudio.client.api_post_multipart",
+                                    return_value=_audio_result()):
+                        env = json.loads(tools_speak.vs_speak(
+                            {"text": "Hi.", "voice": "v",
+                             "out_path": "link.mp3"},
+                            base_url="http://127.0.0.1:3900"))
+                    self.assertEqual(env["code"], "E_bad_out_path")
+                    os.unlink(link)
+                    os.unlink(outside.name)
+                # a plain subpath inside the dir is accepted and confined
+                with mock.patch("voicestudio.client.api_post_multipart",
+                                return_value=_audio_result()):
+                    env = json.loads(tools_speak.vs_speak(
+                        {"text": "Hi.", "voice": "v",
+                         "out_path": "takes/take.mp3"},
+                        base_url="http://127.0.0.1:3900"))
+                self.assertTrue(env["success"], env)
+                self.assertTrue(
+                    os.path.realpath(env["audio_path"]).startswith(
+                        os.path.realpath(plugdir) + os.sep), env)
+
+    def test_input_allowlist_and_refused_dirs(self):
+        """Item 3: bad extensions rejected; HERMES_HOME / ~/.ssh refused."""
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"HERMES_HOME": home}):
+                ssh = os.path.realpath(os.path.expanduser("~/.ssh"))
+                # dub: bad extension
+                with tempfile.NamedTemporaryFile(suffix=".exe",
+                                                 delete=False) as f:
+                    env = json.loads(tools_dub.vs_dub(
+                        {"video": f.name, "langs": "es", "voice": "v"},
+                        base_url="http://x:1"))
+                    self.assertEqual(env["code"], "E11_bad_video")
+                    os.unlink(f.name)
+                # dub: refused dir (file exists so the gate, not E11, fires)
+                inner = os.path.join(home, "clip.mp4")
+                with open(inner, "wb") as f:
+                    f.write(b"0")
+                env = json.loads(tools_dub.vs_dub(
+                    {"video": inner, "langs": "es", "voice": "v"},
+                    base_url="http://x:1"))
+                self.assertEqual(env["code"], "E_refused_path")
+                # longform: bad extension
+                with tempfile.NamedTemporaryFile(suffix=".pdf", mode="w",
+                                                 delete=False) as f:
+                    f.write("x")
+                    env = json.loads(tools_longform.vs_longform(
+                        {"file": f.name, "voice": "v"},
+                        base_url="http://x:1"))
+                    self.assertEqual(env["code"], "E_bad_script")
+                    os.unlink(f.name)
+                # longform: refused dir
+                inner_md = os.path.join(home, "script.md")
+                with open(inner_md, "w") as f:
+                    f.write("# Ch1\n\nHello.\n")
+                env = json.loads(tools_longform.vs_longform(
+                    {"file": inner_md, "voice": "v"},
+                    base_url="http://x:1"))
+                self.assertEqual(env["code"], "E_refused_path")
+                # __file__ of this repo must never sit under ~/.ssh; if the
+                # artist runs with HOME inside .ssh the guard still fires
+                self.assertFalse(ssh == os.path.realpath(home))
+                # positive gates: good extensions outside home pass the gate
+                # (calls proceed to the server probe and fail with E1, not
+                # E11/E_bad_script/E_refused_path)
+                with tempfile.NamedTemporaryFile(suffix=".mp4") as f:
+                    env = json.loads(tools_dub.vs_dub(
+                        {"video": f.name, "langs": "es", "voice": "v"},
+                        base_url="http://127.0.0.1:9", timeout_s=1))
+                    self.assertEqual(env["code"], "E1_server_down", env)
+                with tempfile.NamedTemporaryFile(suffix=".md", mode="w",
+                                                 delete=False) as f:
+                    f.write("# Ch1\n\nHello.\n")
+                    f.flush()
+                    with mock.patch(
+                            "voicestudio.client.api_post_json",
+                            return_value={"error": "refused",
+                                          "kind": "URLError"}):
+                        env = json.loads(tools_longform.vs_longform(
+                            {"file": f.name, "voice": "v"},
+                            base_url="http://127.0.0.1:9", timeout_s=1))
+                    self.assertEqual(env["code"], "E1_server_down", env)
+                    os.unlink(f.name)
+
+    def test_speak_success_message_format(self):
+        """Item 4: the no-seed success message interpolates path and voice."""
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"HERMES_HOME": home}):
+                with mock.patch(
+                        "voicestudio.client.api_post_multipart",
+                        return_value=_audio_result(
+                            headers={"content-type": "audio/mpeg"})):
+                    env = json.loads(tools_speak.vs_speak(
+                        {"text": "Hi.", "voice": "v"},
+                        base_url="http://127.0.0.1:3900"))
+                self.assertTrue(env["success"], env)
+                self.assertEqual(
+                    env["data"]["message"],
+                    "Done. Saved to %s (voice v)." % env["data"]["path"])
+                self.assertNotIn("%s", env["data"]["message"])
+                self.assertNotIn("None", env["data"]["message"])
+                # seed branch keeps working too
+                with mock.patch("voicestudio.client.api_post_multipart",
+                                return_value=_audio_result()):
+                    env = json.loads(tools_speak.vs_speak(
+                        {"text": "Hi.", "voice": "v"},
+                        base_url="http://127.0.0.1:3900"))
+                self.assertIn("Seed 123", env["data"]["message"])
+
+    def test_default_engine_removed(self):
+        """Item 5: default_engine was set at register() but never read, so
+        it is removed (not wired). Registration works without it."""
+        self.assertFalse(hasattr(tools_speak, "DEFAULT_ENGINE"))
+        ctx = RegistrationTests.FakeCtx()
+        del ctx.config["default_engine"]
+        plugin.register(ctx)  # must not raise
+        self.assertEqual(len(ctx.tools), 6)
+
+
 if __name__ == "__main__":
     unittest.main()

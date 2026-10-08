@@ -77,12 +77,10 @@ def register(ctx):
     """Wire schemas to handlers: 6 tools + 6 commands + 1 skill."""
     base_url = ctx.get_config("base_url", default=client.DEFAULT_BASE_URL)
     default_voice = ctx.get_config("default_voice", default="")
-    default_engine = ctx.get_config("default_engine", default="")
     timeout_s = ctx.get_config("timeout_s", default=client.DEFAULT_READ_TIMEOUT_S)
 
     tools_speak.BASE_URL = base_url
     tools_speak.DEFAULT_VOICE = default_voice
-    tools_speak.DEFAULT_ENGINE = default_engine
     tools_speak.TIMEOUT_S = timeout_s
 
     check = _check_fn_factory(lambda: tools_speak.BASE_URL)

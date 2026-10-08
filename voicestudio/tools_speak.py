@@ -11,29 +11,95 @@ import time
 from . import client
 
 # Overridable at register() time from plugin settings; tests pass per-call kwargs.
+# NOTE (CTO hardening): base_url / default_voice / timeout_s / out_dir control
+# where uploads go and which server is hit. They come ONLY from plugin settings
+# (module defaults set by register()) and explicit test kwargs — never from
+# per-call args, which are prompt-injectable.
 BASE_URL = client.DEFAULT_BASE_URL
 DEFAULT_VOICE = ""
-DEFAULT_ENGINE = ""
 TIMEOUT_S = client.DEFAULT_READ_TIMEOUT_S
-OUT_DIR = "."
+
+
+def hermes_home():
+    """Hermes home dir: $HERMES_HOME, falling back to ~/.hermes."""
+    return os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
+
+
+def default_out_dir():
+    """Plugin-owned output dir for saved audio (created on demand)."""
+    return os.path.join(hermes_home(), "plugin-data", "voicestudio")
+
+
+OUT_DIR = default_out_dir()
 
 SPEAK_CHAR_LIMIT = 6000
 SPEED_MIN, SPEED_MAX = 0.25, 4.0
 
 
 def _cfg(key, args, kwargs, default=""):
+    """Plugin-setting lookup: explicit test kwarg wins, else module default.
+
+    Per-call args are NEVER consulted here — args are prompt-injectable, and
+    these keys (base_url/out_dir/timeout_s/default_voice) decide where
+    uploads go and which server is hit. args is kept in the signature so all
+    existing call sites stay unchanged.
+    """
     if key in kwargs and kwargs[key] is not None:
         return kwargs[key]
-    if isinstance(args, dict) and args.get(key) is not None:
-        # handler-level explicit value wins over module default only when set
-        pass
     module_defaults = {
         "base_url": BASE_URL, "default_voice": DEFAULT_VOICE,
         "timeout_s": TIMEOUT_S, "out_dir": OUT_DIR,
     }
-    if isinstance(args, dict) and key in args and args[key] not in (None, ""):
-        return args[key]
     return module_defaults.get(key, default)
+
+
+def _is_under(path_real, root_real):
+    try:
+        return os.path.commonpath([path_real, root_real]) == root_real
+    except (ValueError, OSError):
+        return False
+
+
+def refused_input_path(path):
+    """True when path resolves inside HERMES_HOME or ~/.ssh (never read these)."""
+    real = os.path.realpath(os.path.expanduser(path))
+    hh = os.path.realpath(hermes_home())
+    ssh = os.path.realpath(os.path.expanduser(os.path.join("~", ".ssh")))
+    return _is_under(real, ssh) or _is_under(real, hh)
+
+
+def check_input_file(path, allowed_exts, kind_label, bad_ext_code):
+    """Allowlist gate for user-supplied input files. Returns None when OK,
+    else (message, code) for an err_envelope. Missing files return None so
+    the caller can report them with its own not-found code."""
+    if refused_input_path(path):
+        return ("I cannot use files from that location. "
+                "Pick a file outside your Hermes data directory and SSH keys, "
+                "then try again.", "E_refused_path")
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in allowed_exts:
+        return ("I could not use '%s'. %s files must be one of: %s."
+                % (path, kind_label, ", ".join(sorted(allowed_exts))),
+                bad_ext_code)
+    return None
+
+
+def resolve_out_path(out_path):
+    """Confine an explicit out_path under plugin-data/voicestudio/.
+
+    Resolves symlinks/.. and rejects anything escaping the plugin dir.
+    Returns the absolute confined path; raises ValueError on escape.
+    """
+    base = os.path.realpath(default_out_dir())
+    os.makedirs(base, exist_ok=True)
+    expanded = os.path.expanduser(out_path)
+    if os.path.isabs(expanded):
+        cand = os.path.realpath(expanded)
+    else:
+        cand = os.path.realpath(os.path.join(base, expanded))
+    if not _is_under(cand, base):
+        raise ValueError("out_path escapes the plugin output directory")
+    return cand
 
 
 def _resolve_voice(args, kwargs):
@@ -51,7 +117,7 @@ def vs_speak(args, **kwargs):
         args = dict(args or {})
         base_url = client.normalize_base_url(_cfg("base_url", args, kwargs, client.DEFAULT_BASE_URL))
         timeout = float(_cfg("timeout_s", args, kwargs, client.DEFAULT_READ_TIMEOUT_S) or client.DEFAULT_READ_TIMEOUT_S)
-        out_dir = _cfg("out_dir", args, kwargs, ".")
+        out_dir = _cfg("out_dir", args, kwargs, None) or default_out_dir()
 
         text = str(args.get("text") or "")
         if not text.strip():
@@ -134,11 +200,17 @@ def vs_speak(args, **kwargs):
 
         out_path = args.get("out_path")
         if out_path:
-            dest_dir = os.path.dirname(os.path.abspath(os.path.expanduser(out_path))) or "."
+            try:
+                path = resolve_out_path(out_path)
+            except ValueError:
+                return client.err_envelope(
+                    "I cannot save there. Output files stay inside the "
+                    "plugin output directory — give just a file name.",
+                    code="E_bad_out_path")
+            dest_dir = os.path.dirname(path)
             os.makedirs(dest_dir, exist_ok=True)
-            with open(os.path.abspath(os.path.expanduser(out_path)), "wb") as f:
+            with open(path, "wb") as f:
                 f.write(body)
-            path = os.path.abspath(os.path.expanduser(out_path))
         else:
             stem = "vs-speak-%d" % int(time.time())
             path = client.save_bytes(body, out_dir, stem, "mp3")
@@ -149,7 +221,7 @@ def vs_speak(args, **kwargs):
             data["seed"] = seed
         data["message"] = ("Done. Saved to %(path)s (voice %(voice)s). Seed %(seed)s: "
                            "reuse it to repeat this exact take." % data) if seed is not None else \
-            ("Done. Saved to %(path)s (voice %s)." % (path, voice))
+            ("Done. Saved to %s (voice %s)." % (path, voice))
         if speed_note:
             data["note"] = speed_note
         return client.ok_envelope(data, audio_path=path)

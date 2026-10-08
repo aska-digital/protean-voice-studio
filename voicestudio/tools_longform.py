@@ -15,7 +15,7 @@ import re
 import time
 
 from . import client
-from .tools_speak import _cfg
+from .tools_speak import _cfg, check_input_file, default_out_dir
 
 BASE_URL = client.DEFAULT_BASE_URL
 
@@ -28,6 +28,8 @@ _UNSUPPORTED_TAG_RES = [
 ]
 
 POLL_INTERVAL_S = 5
+
+SCRIPT_EXTS = (".md", ".txt")
 
 
 def find_unsupported_markup(text):
@@ -56,7 +58,7 @@ def vs_longform(args, **kwargs):
         base_url = client.normalize_base_url(_cfg("base_url", args, kwargs, client.DEFAULT_BASE_URL))
         timeout = float(_cfg("timeout_s", args, kwargs, client.DEFAULT_READ_TIMEOUT_S)
                         or client.DEFAULT_READ_TIMEOUT_S)
-        out_dir = _cfg("out_dir", args, kwargs, ".")
+        out_dir = _cfg("out_dir", args, kwargs, None) or default_out_dir()
         default_voice = str(_cfg("default_voice", args, kwargs, "")
                             or args.get("voice") or "").strip()
         voice = str(args.get("voice") or default_voice).strip()
@@ -85,6 +87,10 @@ def vs_longform(args, **kwargs):
             return client.err_envelope(
                 "I could not open '%s'. Check the path and try again." % script_path,
                 code="E_bad_script")
+        gate = check_input_file(script_path, SCRIPT_EXTS, "Script", "E_bad_script")
+        if gate is not None:
+            msg, code = gate
+            return client.err_envelope(msg, code=code)
         if not voice:
             return client.err_envelope(
                 "No narrator chosen and no default voice is set. "

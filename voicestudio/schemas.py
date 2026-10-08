@@ -35,7 +35,7 @@ VS_SPEAK = {
             },
             "out_path": {
                 "type": "string",
-                "description": "Optional full output file path for the audio. Defaults to the plugin output directory.",
+                "description": "Optional output file name for the audio (e.g. take.mp3). Saved inside the plugin output directory; paths escaping it are rejected. Omit to auto-name.",
             },
         },
         "required": ["text"],
