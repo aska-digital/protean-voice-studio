@@ -6,6 +6,7 @@ LOCKED). /v1/audio/speech is ONLY for OpenAI-protocol clients — never used her
 
 import json
 import os
+import tempfile
 import time
 
 from . import client
@@ -111,6 +112,24 @@ def _resolve_voice(args, kwargs):
     return str(dflt).strip()
 
 
+def _save_default_take(body, out_dir):
+    """Reserve a unique filename exclusively before writing a default take."""
+    out_dir = os.path.abspath(os.path.expanduser(out_dir or "."))
+    os.makedirs(out_dir, exist_ok=True)
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+                mode="wb", prefix="vs-speak-%d-" % int(time.time()),
+                suffix=".mp3", dir=out_dir, delete=False) as f:
+            path = f.name
+            f.write(body)
+    except Exception:
+        if path is not None:
+            os.unlink(path)
+        raise
+    return path
+
+
 def vs_speak(args, **kwargs):
     """Say text in a voice, save audio file. Returns JSON-string envelope."""
     try:
@@ -212,8 +231,7 @@ def vs_speak(args, **kwargs):
             with open(path, "wb") as f:
                 f.write(body)
         else:
-            stem = "vs-speak-%d" % int(time.time())
-            path = client.save_bytes(body, out_dir, stem, "mp3")
+            path = _save_default_take(body, out_dir)
 
         seed = (r.get("headers") or {}).get("x-seed")
         data = {"path": path, "voice": voice, "bytes": len(body)}

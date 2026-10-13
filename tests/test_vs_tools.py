@@ -50,6 +50,36 @@ class EnvelopeTests(unittest.TestCase):
 
 
 class SpeakTests(unittest.TestCase):
+    def test_same_second_default_takes_keep_distinct_audio(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch("voicestudio.tools_speak.time.time", return_value=1234567890), \
+                mock.patch("voicestudio.client.api_post_multipart", side_effect=[
+                    _audio_result(b"FIRST TAKE"), _audio_result(b"SECOND TAKE")]):
+            first = json.loads(tools_speak.vs_speak(
+                {"text": "First.", "voice": "v"}, out_dir=tmp))
+            second = json.loads(tools_speak.vs_speak(
+                {"text": "Second.", "voice": "v"}, out_dir=tmp))
+            self.assertTrue(first["success"])
+            self.assertTrue(second["success"])
+            self.assertNotEqual(first["audio_path"], second["audio_path"])
+            for take, expected in [(first, b"FIRST TAKE"), (second, b"SECOND TAKE")]:
+                with open(take["audio_path"], "rb") as f:
+                    self.assertEqual(f.read(), expected)
+
+    def test_failed_default_take_write_cleans_reserved_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reserved = tempfile.NamedTemporaryFile(mode="wb", dir=tmp, delete=False)
+            reserved.write = mock.Mock(side_effect=OSError("synthetic write failure"))
+            with mock.patch("voicestudio.tools_speak.tempfile.NamedTemporaryFile",
+                            return_value=reserved), \
+                    mock.patch("voicestudio.client.api_post_multipart",
+                               return_value=_audio_result()):
+                env = json.loads(tools_speak.vs_speak(
+                    {"text": "Hello.", "voice": "v"}, out_dir=tmp))
+            self.assertFalse(env["success"])
+            self.assertEqual(env["code"], "E_exception")
+            self.assertFalse(os.path.exists(reserved.name))
+
     def test_success_envelope_and_json_string(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch("voicestudio.client.api_post_multipart",
